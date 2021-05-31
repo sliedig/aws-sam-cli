@@ -330,7 +330,7 @@ class TestBootstrap(BootstrapIntegBase):
 
     def test_interactive_pipeline_user_only_created_once(self):
         """
-        Create 3 stages, only the first stage resource stack creates
+        Create 3 environments, only the first environment resource stack creates
         a pipeline user, and the remaining two share the same pipeline user.
         """
         stage_configuration_names = []
