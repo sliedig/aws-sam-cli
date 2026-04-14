@@ -1,10 +1,12 @@
-import tempfile
+import io
+import json
 import os
+import tempfile
 from unittest import TestCase
-from unittest.mock import call, patch, ANY, mock_open
+from unittest.mock import call, mock_open, patch
 
 import botocore
-from botocore.exceptions import ClientError
+
 from samcli.lib.schemas.schemas_code_manager import do_download_source_code_binding, do_extract_and_merge_schemas_code
 
 
@@ -70,6 +72,63 @@ class TestSchemaCodeManager(TestCase):
         )
         self.assertEqual(schemas_api_caller_mock.put_code_binding.call_count, 1)
         self.assertEqual(schemas_api_caller_mock.poll_for_code_binding_status.call_count, 1)
+
+    @patch("samcli.lib.schemas.schemas_code_manager.generate_dotnet_code_binding")
+    @patch("samcli.lib.schemas.schemas_api_caller.SchemasApiCaller")
+    def test_dotnet8_routes_through_custom_codegen(self, schemas_api_caller_mock, codegen_mock):
+        download_location = io.BytesIO()
+        schema_content = json.dumps({"components": {"schemas": {}}})
+        schemas_api_caller_mock._schemas_client.describe_schema.return_value = {"Content": schema_content}
+        schema_template_details = {
+            "registry_name": "aws.events",
+            "schema_full_name": "aws.ec2@EC2InstanceStateChangeNotification",
+            "schema_name": "EC2InstanceStateChangeNotification",
+            "schema_version": "1",
+            "event_source": "aws.ec2",
+            "event_source_detail_type": "EC2 Instance State-change Notification",
+        }
+        do_download_source_code_binding("dotnet8", schema_template_details, schemas_api_caller_mock, download_location)
+        codegen_mock.assert_called_once_with(
+            schema_content, "aws.ec2@EC2InstanceStateChangeNotification", download_location
+        )
+        schemas_api_caller_mock.download_source_code_binding.assert_not_called()
+
+    @patch("samcli.lib.schemas.schemas_code_manager.generate_dotnet_code_binding")
+    @patch("samcli.lib.schemas.schemas_api_caller.SchemasApiCaller")
+    def test_dotnet10_routes_through_custom_codegen(self, schemas_api_caller_mock, codegen_mock):
+        download_location = io.BytesIO()
+        schema_content = json.dumps({"components": {"schemas": {}}})
+        schemas_api_caller_mock._schemas_client.describe_schema.return_value = {"Content": schema_content}
+        schema_template_details = {
+            "registry_name": "aws.events",
+            "schema_full_name": "aws.ec2@EC2InstanceStateChangeNotification",
+            "schema_name": "EC2InstanceStateChangeNotification",
+            "schema_version": "1",
+            "event_source": "aws.ec2",
+            "event_source_detail_type": "EC2 Instance State-change Notification",
+        }
+        do_download_source_code_binding("dotnet10", schema_template_details, schemas_api_caller_mock, download_location)
+        codegen_mock.assert_called_once_with(
+            schema_content, "aws.ec2@EC2InstanceStateChangeNotification", download_location
+        )
+        schemas_api_caller_mock.download_source_code_binding.assert_not_called()
+
+    @patch("samcli.lib.schemas.schemas_code_manager.generate_dotnet_code_binding")
+    @patch("samcli.lib.schemas.schemas_api_caller.SchemasApiCaller")
+    def test_non_dotnet_runtime_uses_schemas_api(self, schemas_api_caller_mock, codegen_mock):
+        temp_dir = tempfile.gettempdir()
+        schemas_api_caller_mock.download_source_code_binding.return_value = "/usr/hello/something.zip"
+        schema_template_details = {
+            "registry_name": self.registry_name,
+            "schema_full_name": self.schema_full_name,
+            "schema_name": self.schema_name,
+            "schema_version": self.schema_version,
+            "event_source": None,
+            "event_source_detail_type": None,
+        }
+        do_download_source_code_binding("java11", schema_template_details, schemas_api_caller_mock, temp_dir)
+        schemas_api_caller_mock.download_source_code_binding.assert_called_once()
+        codegen_mock.assert_not_called()
 
     @patch("json.loads")
     @patch("samcli.lib.schemas.schemas_code_manager.unzip")

@@ -1197,6 +1197,213 @@ us-east-1
     @patch("samcli.commands.init.init_templates.InitTemplates.get_preprocessed_manifest")
     @patch("samcli.commands.init.init_templates.InitTemplates._init_options_from_manifest")
     @patch("samcli.lib.schemas.schemas_aws_config.Session")
+    @patch("samcli.commands.init.interactive_init_flow.do_extract_and_merge_schemas_code")
+    @patch("samcli.commands.init.interactive_event_bridge_flow.SchemasApiCaller")
+    @patch("samcli.commands.init.interactive_event_bridge_flow.get_schemas_client")
+    @patch("samcli.commands.init.init_generator.generate_project")
+    def test_init_cli_int_with_dotnet8_event_bridge_schema_app(
+        self,
+        generate_project_patch,
+        get_schemas_client_mock,
+        schemas_api_caller_mock,
+        do_extract_and_merge_schemas_code_mock,
+        session_mock,
+        init_options_from_manifest_mock,
+        get_preprocessed_manifest_mock,
+    ):
+        init_options_from_manifest_mock.return_value = [
+            {
+                "directory": "dotnet8/cookiecutter-aws-sam-eventbridge-hello-dotnet-cli-package",
+                "displayName": "EventBridge Hello World: cli-package",
+                "dependencyManager": "cli-package",
+                "appTemplate": "eventBridge-hello-world",
+                "packageType": "Zip",
+                "useCaseName": "Infrastructure event management",
+            },
+            {
+                "directory": "dotnet8/cookiecutter-aws-sam-eventbridge-schema-app-dotnet-cli-package",
+                "displayName": "EventBridge App from scratch (100+ Event Schemas): cli-package",
+                "dependencyManager": "cli-package",
+                "appTemplate": "eventBridge-schema-app",
+                "isDynamicTemplate": "True",
+                "packageType": "Zip",
+                "useCaseName": "Infrastructure event management",
+            },
+        ]
+        get_preprocessed_manifest_mock.return_value = {
+            "Infrastructure event management": {
+                "dotnet8": {
+                    "Zip": [
+                        {
+                            "directory": "dotnet8/cookiecutter-aws-sam-eventbridge-hello-dotnet-cli-package",
+                            "displayName": "EventBridge Hello World: cli-package",
+                            "dependencyManager": "cli-package",
+                            "appTemplate": "eventBridge-hello-world",
+                            "packageType": "Zip",
+                            "useCaseName": "Infrastructure event management",
+                        },
+                        {
+                            "directory": "dotnet8/cookiecutter-aws-sam-eventbridge-schema-app-dotnet-cli-package",
+                            "displayName": "EventBridge App from scratch (100+ Event Schemas): cli-package",
+                            "dependencyManager": "cli-package",
+                            "appTemplate": "eventBridge-schema-app",
+                            "isDynamicTemplate": "True",
+                            "packageType": "Zip",
+                            "useCaseName": "Infrastructure event management",
+                        },
+                    ]
+                }
+            },
+        }
+        session_mock.return_value.profile_name = "test"
+        session_mock.return_value.region_name = "ap-southeast-2"
+        schemas_api_caller_mock.return_value.list_registries.return_value = {
+            "registries": ["aws.events"],
+            "next_token": None,
+        }
+        schemas_api_caller_mock.return_value.list_schemas.return_value = {
+            "schemas": [
+                "aws.ec2.EC2InstanceStateChangeNotification",
+            ],
+            "next_token": None,
+        }
+        schemas_api_caller_mock.return_value.get_latest_schema_version.return_value = "1"
+        schemas_api_caller_mock.return_value.get_schema_metadata.return_value = {
+            "event_source": "aws.ec2",
+            "event_source_detail_type": "EC2 Instance State-change Notification",
+            "schema_root_name": "EC2InstanceStateChangeNotification",
+            "schemas_package_hierarchy": "schemas.aws.ec2.EC2InstanceStateChangeNotification",
+        }
+        schemas_api_caller_mock.return_value.download_source_code_binding.return_value = "result.zip"
+
+        # 1: AWS Quick Start Templates
+        # Use case: auto-selected (only "Infrastructure event management")
+        # Runtime: auto-selected (only dotnet8)
+        # Package type: auto-selected (only Zip)
+        # Dep manager: auto-selected (only cli-package)
+        # 2: Select EventBridge Schema App template (2nd of 2 templates)
+        # N: Tracing
+        # N: App Insights
+        # N: Structured Logging
+        # test-project: project name
+        # Y: Use default aws configuration
+        # 1: select from registries (paginator)
+        # 4: select aws.events
+        # 9: select first schema
+        user_input = """
+1
+2
+N
+N
+N
+test-project
+Y
+1
+4
+9
+.
+        """
+        runner = CliRunner()
+        result = runner.invoke(init_cmd, input=user_input)
+        self.assertFalse(result.exception)
+        generate_project_patch.assert_called_once_with(
+            ANY,
+            ZIP,
+            "dotnet8",
+            "cli-package",
+            ".",
+            "test-project",
+            True,
+            {
+                "project_name": "test-project",
+                "runtime": "dotnet8",
+                "AWS_Schema_registry": "aws.events",
+                "AWS_Schema_name": "EC2InstanceStateChangeNotification",
+                "AWS_Schema_source": "aws.ec2",
+                "AWS_Schema_detail_type": "EC2 Instance State-change Notification",
+                "AWS_Schema_root": "schemas.aws.ec2.EC2InstanceStateChangeNotification",
+                "architectures": {"value": [X86_64]},
+            },
+            False,
+            False,
+            False,
+        )
+
+    @patch.object(InitTemplates, "__init__", MockInitTemplates.__init__)
+    @patch("samcli.commands.init.init_templates.InitTemplates.get_preprocessed_manifest")
+    @patch("samcli.commands.init.init_templates.InitTemplates._init_options_from_manifest")
+    @patch("samcli.commands.init.init_generator.generate_project")
+    def test_init_cli_int_with_dotnet8_event_bridge_hello_world(
+        self,
+        generate_project_patch,
+        init_options_from_manifest_mock,
+        get_preprocessed_manifest_mock,
+    ):
+        init_options_from_manifest_mock.return_value = [
+            {
+                "directory": "dotnet8/cookiecutter-aws-sam-eventbridge-hello-dotnet-cli-package",
+                "displayName": "EventBridge Hello World: cli-package",
+                "dependencyManager": "cli-package",
+                "appTemplate": "eventBridge-hello-world",
+                "packageType": "Zip",
+                "useCaseName": "Infrastructure event management",
+            },
+        ]
+        get_preprocessed_manifest_mock.return_value = {
+            "Infrastructure event management": {
+                "dotnet8": {
+                    "Zip": [
+                        {
+                            "directory": "dotnet8/cookiecutter-aws-sam-eventbridge-hello-dotnet-cli-package",
+                            "displayName": "EventBridge Hello World: cli-package",
+                            "dependencyManager": "cli-package",
+                            "appTemplate": "eventBridge-hello-world",
+                            "packageType": "Zip",
+                            "useCaseName": "Infrastructure event management",
+                        },
+                    ]
+                }
+            },
+        }
+
+        # 1: AWS Quick Start Templates
+        # Use case: auto-selected (only "Infrastructure event management")
+        # Runtime: auto-selected (only dotnet8)
+        # Package type: auto-selected (only Zip)
+        # Dep manager: auto-selected (only cli-package)
+        # Template: auto-selected (only 1 template)
+        # N: Tracing
+        # N: App Insights
+        # N: Structured Logging
+        # test-project: project name
+        user_input = """
+1
+N
+N
+N
+test-project
+        """
+        runner = CliRunner()
+        result = runner.invoke(init_cmd, input=user_input)
+        self.assertFalse(result.exception)
+        generate_project_patch.assert_called_once_with(
+            ANY,
+            ZIP,
+            "dotnet8",
+            "cli-package",
+            ".",
+            "test-project",
+            True,
+            {"project_name": "test-project", "runtime": "dotnet8", "architectures": {"value": [X86_64]}},
+            False,
+            False,
+            False,
+        )
+
+    @patch.object(InitTemplates, "__init__", MockInitTemplates.__init__)
+    @patch("samcli.commands.init.init_templates.InitTemplates.get_preprocessed_manifest")
+    @patch("samcli.commands.init.init_templates.InitTemplates._init_options_from_manifest")
+    @patch("samcli.lib.schemas.schemas_aws_config.Session")
     @patch("samcli.commands.init.interactive_event_bridge_flow.SchemasApiCaller")
     @patch("samcli.commands.init.interactive_event_bridge_flow.get_schemas_client")
     def test_init_cli_int_with_event_bridge_app_template_and_aws_configuration_with_wrong_region_name(

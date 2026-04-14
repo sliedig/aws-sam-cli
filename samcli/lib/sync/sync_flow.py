@@ -345,9 +345,9 @@ class SyncFlow(ABC):
         return hash((type(self), self._equality_keys()))
 
     def __eq__(self, o: object) -> bool:
-        if type(o) is not type(self):
+        if not isinstance(o, SyncFlow):
             return False
-        return cast(bool, self._equality_keys() == cast(SyncFlow, o)._equality_keys())
+        return cast(bool, self._equality_keys() == o._equality_keys())
 
     @property
     def log_name(self) -> str:
